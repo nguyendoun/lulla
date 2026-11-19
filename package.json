@@ -7,10 +7,16 @@
     "build": "nuxt build",
     "preview": "node .output/server/index.mjs",
     "build:static": "STATIC_EXPORT=1 nuxt generate && node scripts/export-static.mjs",
-    "deploy": "npm run build:static && npx wrangler deploy"
+    "deploy": "npm run build:static && wrangler deploy"
   },
   "dependencies": {
     "music-metadata": "^11.0.0",
     "nuxt": "^3.15.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.165.0"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }
