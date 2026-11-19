@@ -7,6 +7,8 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  # Gọi từ add-music.yml sau khi commit nhạc mới (push bằng GITHUB_TOKEN không tự kích hoạt workflow)
+  workflow_call:
 
 concurrency:
   group: deploy-${{ github.ref }}
@@ -17,6 +19,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.ref }} # lấy main mới nhất (gồm bài vừa thêm)
 
       - uses: actions/setup-node@v5
         with:
@@ -52,6 +56,8 @@ jobs:
       url: https://doun.online
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.ref }} # lấy main mới nhất (gồm bài vừa thêm)
 
       - uses: actions/setup-node@v5
         with:

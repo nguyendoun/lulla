@@ -1,0 +1,82 @@
+name: Thêm nhạc từ link
+run-name: "Thêm nhạc: ${{ inputs.links }}"
+
+# Kích hoạt từ doun.online (Worker /api/add) hoặc bấm tay ở tab Actions
+on:
+  workflow_dispatch:
+    inputs:
+      links:
+        description: Các link nhạc (YouTube, TikTok, SoundCloud…), cách nhau bằng dấu cách
+        required: true
+
+concurrency:
+  group: add-music # chạy lần lượt để không đè commit nhau
+  cancel-in-progress: false
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - name: Cài yt-dlp + ffmpeg
+        run: |
+          sudo curl -fsSL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
+          sudo chmod +x /usr/local/bin/yt-dlp
+          command -v ffmpeg || (sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg)
+          yt-dlp --version
+
+      - name: Tải nhạc
+        env:
+          LINKS: ${{ inputs.links }} # qua biến môi trường, không chèn thẳng vào script
+        run: |
+          set -u
+          ok=0; fail=0
+          before=$(ls music | wc -l)
+          re='^https?://[A-Za-z0-9._~:/?#@!&+=%,;-]+$'
+          for link in $LINKS; do
+            # chỉ nhận link http(s) không có ký tự lạ
+            if ! [[ "$link" =~ $re ]]; then
+              echo "::warning::Bỏ qua link không hợp lệ: $link"; fail=$((fail+1)); continue
+            fi
+            echo "::group::$link"
+            if yt-dlp --no-playlist --ignore-config \
+                 --match-filter "duration < 1200" \
+                 -x --audio-format mp3 --audio-quality 128K \
+                 --embed-metadata --embed-thumbnail --convert-thumbnails jpg \
+                 --download-archive music/.downloaded.txt \
+                 --trim-filenames 150 \
+                 -o "music/%(artist,uploader,channel)s - %(track,title)s.%(ext)s" \
+                 -- "$link"; then
+              ok=$((ok+1))
+            else
+              echo "::warning::Không tải được: $link"; fail=$((fail+1))
+            fi
+            echo "::endgroup::"
+          done
+          # Cloudflare giới hạn 25MB mỗi file
+          find music -name '*.mp3' -size +25M -print -delete | sed 's/^/::warning::Quá 25MB, đã bỏ: /'
+          after=$(ls music | wc -l)
+          echo "Thành công: $ok, lỗi: $fail, bài mới: $((after-before))"
+          echo "### Thêm nhạc: $((after-before)) bài mới, $fail link lỗi" >> "$GITHUB_STEP_SUMMARY"
+          git status --porcelain music | sed 's/^/- /' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Commit + push
+        run: |
+          if [ -z "$(git status --porcelain music)" ]; then
+            echo "::error::Không có bài mới nào (link lỗi hoặc đã có sẵn)"; exit 1
+          fi
+          git config user.name "lulla-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add music
+          git commit -m "Thêm nhạc từ link"
+          git push origin HEAD:main
+
+  deploy:
+    needs: download
+    uses: ./.github/workflows/deploy.yml
+    secrets: inherit

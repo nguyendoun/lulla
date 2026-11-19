@@ -5,6 +5,7 @@ const theme = useTheme()
 const lib = useLibrary()
 const profile = useProfile()
 const q = useState('search', () => '')
+const { staticMode } = useRuntimeConfig().public
 const input = ref<HTMLInputElement | null>(null)
 
 const TITLES: Record<string, string> = {
@@ -63,6 +64,7 @@ const mobileNav = [
     </label>
 
     <div class="actions">
+      <AddFromLink v-if="staticMode" />
       <button class="ic" title="Quét lại thư mục nhạc" :class="{ spin: lib.loading.value }" @click="lib.load(true)">
         <Icon name="refresh" :size="17" />
       </button>

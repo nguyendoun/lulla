@@ -7,10 +7,12 @@
   "workers_dev": true,
   "compatibility_date": "2026-11-01",
   "main": "worker/index.js",
+  // Thêm nhạc từ link: Worker gọi workflow này trên GitHub (secret ADD_CODE, GITHUB_TOKEN đặt riêng)
+  "vars": { "GITHUB_REPO": "nguyendoun/lulla", "ADD_WORKFLOW": "add-music.yml" },
   "assets": {
     "directory": ".output/public",
     "binding": "ASSETS",
-    "run_worker_first": ["/media/*"],
+    "run_worker_first": ["/media/*", "/api/*"],
     // Đường dẫn như /stats, /library tải lại vẫn ra app
     "not_found_handling": "single-page-application"
   }
