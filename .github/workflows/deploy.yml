@@ -73,5 +73,7 @@ jobs:
       - name: Kiểm tra trang sau deploy
         run: |
           sleep 10
-          curl -fsS https://doun.online/data/tracks.json -o /dev/null
-          echo "doun.online OK"
+          curl -fsS https://doun.online/login -o /dev/null
+          code=$(curl -s -o /dev/null -w '%{http_code}' https://doun.online/data/tracks.json)
+          test "$code" = 401 || { echo "::error::tracks.json không bị khoá ($code)"; exit 1; }
+          echo "doun.online OK, đã khoá đăng nhập"

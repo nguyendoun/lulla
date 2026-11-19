@@ -15,11 +15,9 @@ interface Job {
 
 const EXT = ['mp3', 'm4a', 'aac', 'flac', 'ogg', 'opus', 'wav', 'webm']
 const MAX = 25 * 1024 * 1024
-const CODE_KEY = 'lulla:add-code'
 
 const lib = useLibrary()
 const open = ref(false)
-const code = ref('')
 const items = ref<Item[]>([])
 const dragging = ref(false)
 const running = ref(false)
@@ -32,7 +30,6 @@ let startedAt = 0
 const pending = computed(() => items.value.filter((i) => i.state === 'wait').length)
 const uploaded = computed(() => items.value.filter((i) => i.state === 'done').length)
 
-onMounted(() => (code.value = localStorage.getItem(CODE_KEY) || ''))
 onBeforeUnmount(() => timer && clearTimeout(timer))
 
 function show() {
@@ -73,7 +70,6 @@ function toBase64(file: File) {
 
 async function start() {
   error.value = ''
-  if (!code.value.trim()) return (error.value = 'Nhập mã thêm nhạc')
   if (!pending.value) return (error.value = 'Chọn ít nhất 1 file nhạc')
   running.value = true
   startedAt = Date.now()
@@ -89,20 +85,16 @@ async function start() {
         method: 'POST',
         headers: {
           'content-type': 'text/plain',
-          'x-add-code': code.value.trim(),
           'x-filename': encodeURIComponent(it.file.name),
         },
         body,
       })
       const data = await res.json().catch(() => ({}))
       if (res.status === 401) {
-        it.state = 'wait'
-        it.msg = ''
-        error.value = 'Sai mã thêm nhạc'
-        localStorage.removeItem(CODE_KEY)
-        break
+        // hết phiên đăng nhập
+        window.location.href = '/login?next=' + encodeURIComponent(location.pathname)
+        return
       }
-      localStorage.setItem(CODE_KEY, code.value.trim())
       if (res.ok) {
         it.state = 'done'
         it.msg = 'Đã lên'
@@ -127,7 +119,7 @@ async function start() {
 async function watchDeploy() {
   if (timer) clearTimeout(timer)
   try {
-    const jobs = await $fetch<Job[]>('/api/jobs', { headers: { 'x-add-code': code.value.trim() } })
+    const jobs = await $fetch<Job[]>('/api/jobs')
     const mine = jobs.filter((j) => new Date(j.createdAt).getTime() >= startedAt - 60_000)
     const last = mine[0]
     if (last && last.status === 'completed' && !mine.some((j) => j.status !== 'completed')) {
@@ -196,7 +188,6 @@ function size(n: number) {
           </ul>
 
           <div class="row">
-            <input v-model="code" type="password" placeholder="Mã thêm nhạc" autocomplete="current-password" />
             <button class="btn btn-primary" :disabled="running || !pending" @click="start">
               <Icon name="upload" :size="15" />
               {{ running ? 'Đang tải…' : pending > 1 ? `Tải ${pending} bài` : 'Tải lên' }}
@@ -430,6 +421,7 @@ header p {
 }
 .row {
   display: flex;
+  justify-content: flex-end;
   gap: 10px;
 }
 .row input {

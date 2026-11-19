@@ -3,6 +3,7 @@ const profile = useProfile()
 const stats = useStats()
 const lib = useLibrary()
 const theme = useTheme()
+const { staticMode } = useRuntimeConfig().public
 
 const name = ref(profile.name.value)
 const goal = ref(stats.goalMin.value)
@@ -65,6 +66,12 @@ function clearStats() {
         <button class="btn btn-soft" @click="exportData">Xuất JSON</button>
         <button class="btn btn-soft danger" @click="clearStats">Xoá lịch sử nghe</button>
       </div>
+    </div>
+
+    <div v-if="staticMode" class="card group rise" style="animation-delay: 210ms">
+      <h3>Tài khoản</h3>
+      <p class="muted">Đăng nhập được giữ 30 ngày trên thiết bị này.</p>
+      <a class="btn btn-soft danger" href="/logout">Đăng xuất</a>
     </div>
 
     <div class="card group rise" style="animation-delay: 240ms">

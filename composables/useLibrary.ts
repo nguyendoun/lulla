@@ -46,6 +46,10 @@ export function useLibrary() {
         ? await $fetch<Track[]>('/data/tracks.json', { query: refresh ? { t: Date.now() } : {} })
         : await $fetch<Track[]>('/api/tracks', { query: refresh ? { refresh: 1 } : {} })
       loaded.value = true
+    } catch (e: any) {
+      // Bản online: hết phiên đăng nhập → về trang đăng nhập
+      if (staticMode && e?.status === 401) window.location.href = '/login?next=' + encodeURIComponent(location.pathname)
+      else throw e
     } finally {
       loading.value = false
     }
