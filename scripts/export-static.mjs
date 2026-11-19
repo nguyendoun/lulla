@@ -9,9 +9,10 @@ import { promisify } from 'node:util'
 
 const run = promisify(execFile)
 
-const AUDIO_EXT = new Set(['.mp3', '.flac', '.m4a', '.aac', '.ogg', '.opus', '.wav', '.webm', '.amr', '.3gp', '.3ga', '.caf'])
+const AUDIO_EXT = new Set(['.mp3', '.flac', '.m4a', '.aac', '.ogg', '.opus', '.wav', '.webm', '.amr', '.3gp', '.3ga', '.caf', '.qta'])
 // Ghi âm điện thoại / trình duyệt: nhiều trình duyệt không phát được → đổi sang mp3 bằng ffmpeg
-const CONVERT = new Set(['.amr', '.3gp', '.3ga', '.caf', '.webm'])
+// .qta = ghi âm nhiều lớp của iPhone (iOS 18)
+const CONVERT = new Set(['.amr', '.3gp', '.3ga', '.caf', '.qta', '.webm'])
 const MAX_SIZE = 25 * 1024 * 1024 // giới hạn 1 file của Cloudflare Pages
 const root = path.resolve(process.env.MUSIC_DIR || './music')
 const out = path.resolve('.output/public')
@@ -54,8 +55,11 @@ for (const full of await walk(root)) {
     id, title: g.title, artist: g.artist || 'Không rõ nghệ sĩ', album: 'Single', year: null,
     genre: 'Khác', duration: 0, trackNo: null, hasCover: false, addedAt: stat.mtimeMs,
   }
+  let alac = false
   try {
     const meta = await parseFile(full, { duration: true })
+    // m4a Lossless của iPhone (ALAC): Chrome không phát được → đổi sang mp3
+    alac = /alac/i.test(meta.format.codec || '')
     const c = meta.common
     t = {
       ...t,
@@ -75,7 +79,7 @@ for (const full of await walk(root)) {
       t.cover = `/covers/${id}${pext}`
     }
   } catch {}
-  if (CONVERT.has(ext)) {
+  if (CONVERT.has(ext) || alac) {
     const dest = path.join(out, 'media', id + '.mp3')
     try {
       await run('ffmpeg', ['-v', 'error', '-y', '-i', full, '-vn', '-b:a', '128k', dest])

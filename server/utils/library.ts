@@ -17,9 +17,9 @@ export interface Track {
   addedAt: number
 }
 
-const AUDIO_EXT = new Set(['.mp3', '.flac', '.m4a', '.aac', '.ogg', '.opus', '.wav', '.webm', '.amr', '.3gp', '.3ga', '.caf'])
+const AUDIO_EXT = new Set(['.mp3', '.flac', '.m4a', '.aac', '.ogg', '.opus', '.wav', '.webm', '.amr', '.3gp', '.3ga', '.caf', '.qta'])
 // Ghi âm điện thoại: trình duyệt không phát được → đổi sang mp3 khi phát (xem stream/[id])
-export const TRANSCODE = new Set(['.amr', '.3gp', '.3ga', '.caf'])
+export const TRANSCODE = new Set(['.amr', '.3gp', '.3ga', '.caf', '.qta'])
 
 export const MIME: Record<string, string> = {
   '.mp3': 'audio/mpeg',

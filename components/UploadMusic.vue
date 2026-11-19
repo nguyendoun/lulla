@@ -13,7 +13,7 @@ interface Job {
   createdAt: string
 }
 
-const EXT = ['mp3', 'm4a', 'aac', 'flac', 'ogg', 'opus', 'wav', 'webm', 'amr', '3gp', '3ga', 'caf']
+const EXT = ['mp3', 'm4a', 'aac', 'flac', 'ogg', 'opus', 'wav', 'webm', 'amr', '3gp', '3ga', 'caf', 'qta']
 const MAX = 25 * 1024 * 1024
 
 const lib = useLibrary()
@@ -233,7 +233,7 @@ function size(n: number) {
             @dragleave="dragging = false"
             @drop.prevent="onDrop"
           >
-            <input ref="picker" type="file" multiple accept="audio/*,.mp3,.m4a,.aac,.flac,.ogg,.opus,.wav,.webm,.amr,.3gp,.3ga,.caf" @change="addFiles(($event.target as HTMLInputElement).files); ($event.target as HTMLInputElement).value = ''" />
+            <input ref="picker" type="file" multiple accept="audio/*,.mp3,.m4a,.aac,.flac,.ogg,.opus,.wav,.webm,.amr,.3gp,.3ga,.caf,.qta" @change="addFiles(($event.target as HTMLInputElement).files); ($event.target as HTMLInputElement).value = ''" />
             <Icon name="music" :size="22" />
             <b>Kéo thả file vào đây</b>
             <span>hoặc bấm để chọn từ máy</span>
