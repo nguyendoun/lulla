@@ -1,4 +1,6 @@
 <script setup lang="ts">
+const { staticMode } = useRuntimeConfig().public
+const uploadOpen = useState('upload-open', () => false)
 const lib = useLibrary()
 const p = usePlayer()
 const stats = useStats()
@@ -71,7 +73,10 @@ const SORTS = [
           {{ lib.tracks.value.length }} bài · {{ lib.albums.value.length }} album · {{ fmtLong(lib.totalDuration.value) }} nhạc
         </p>
       </div>
-      <button class="btn btn-primary" @click="playAll"><Icon name="play" :size="14" fill /> Phát tất cả</button>
+      <div class="head-actions">
+        <button v-if="staticMode" class="btn btn-soft" @click="uploadOpen = true"><Icon name="mic" :size="15" /> Tải lên / Ghi âm</button>
+        <button class="btn btn-primary" @click="playAll"><Icon name="play" :size="14" fill /> Phát tất cả</button>
+      </div>
     </header>
 
     <div class="tabs">
@@ -120,6 +125,11 @@ const SORTS = [
 </template>
 
 <style scoped>
+.head-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
 .lib {
   max-width: 1280px;
 }

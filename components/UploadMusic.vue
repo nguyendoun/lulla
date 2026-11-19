@@ -17,7 +17,8 @@ const EXT = ['mp3', 'm4a', 'aac', 'flac', 'ogg', 'opus', 'wav', 'webm', 'amr', '
 const MAX = 25 * 1024 * 1024
 
 const lib = useLibrary()
-const open = ref(false)
+// Dùng chung để nút ở trang khác (Thư viện) mở được hộp này
+const open = useState('upload-open', () => false)
 const items = ref<Item[]>([])
 const dragging = ref(false)
 const running = ref(false)
@@ -206,8 +207,9 @@ function size(n: number) {
 </script>
 
 <template>
-  <button class="ic" title="Tải nhạc lên" @click="show">
-    <Icon name="upload" :size="17" />
+  <button class="up-btn" title="Tải nhạc / ghi âm lên" @click="show">
+    <Icon name="upload" :size="16" />
+    <span class="up-label">Tải lên</span>
     <span v-if="running || deploying" class="dot" />
   </button>
 
@@ -283,30 +285,43 @@ function size(n: number) {
 </template>
 
 <style scoped>
-.ic {
+.up-btn {
   position: relative;
-  width: 38px;
   height: 38px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  color: var(--text-2);
-  transition:
-    background 0.2s,
-    color 0.2s,
-    transform 0.3s var(--ease-spring);
+  padding: 0 14px 0 12px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 700;
+  font-size: 13px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  box-shadow: 0 6px 16px -8px var(--accent);
+  transition: transform 0.3s var(--ease-spring);
 }
-.ic:hover {
-  background: var(--surface);
-  color: var(--text);
+.up-btn:hover {
+  transform: translateY(-1px);
 }
-.ic:active {
-  transform: scale(0.9);
+.up-btn:active {
+  transform: scale(0.94);
+}
+@media (max-width: 520px) {
+  /* điện thoại hẹp: chỉ icon, vẫn nổi bật nhờ nền cam */
+  .up-btn {
+    width: 38px;
+    padding: 0;
+    justify-content: center;
+  }
+  .up-label {
+    display: none;
+  }
 }
 .dot {
   position: absolute;
-  top: 7px;
-  right: 7px;
+  top: 2px;
+  right: 2px;
+  box-shadow: 0 0 0 2px var(--bg);
   width: 8px;
   height: 8px;
   border-radius: 50%;
