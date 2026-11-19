@@ -13,7 +13,7 @@ interface Job {
   createdAt: string
 }
 
-const EXT = ['mp3', 'm4a', 'aac', 'flac', 'ogg', 'opus', 'wav', 'webm']
+const EXT = ['mp3', 'm4a', 'aac', 'flac', 'ogg', 'opus', 'wav', 'webm', 'amr', '3gp', '3ga', 'caf']
 const MAX = 25 * 1024 * 1024
 
 const lib = useLibrary()
@@ -30,14 +30,79 @@ let startedAt = 0
 const pending = computed(() => items.value.filter((i) => i.state === 'wait').length)
 const uploaded = computed(() => items.value.filter((i) => i.state === 'done').length)
 
-onBeforeUnmount(() => timer && clearTimeout(timer))
+onBeforeUnmount(() => {
+  if (timer) clearTimeout(timer)
+  stopRec(true)
+})
+
+// ---------- Ghi âm thẳng trên web ----------
+const canRecord = ref(false)
+const recording = ref(false)
+const recSec = ref(0)
+let mr: MediaRecorder | null = null
+let micStream: MediaStream | null = null
+let chunks: Blob[] = []
+let recTimer: ReturnType<typeof setInterval> | null = null
+const MAX_REC_SEC = 30 * 60 // 30 phút, file vẫn dưới 25MB
+
+onMounted(() => {
+  canRecord.value = !!(navigator.mediaDevices?.getUserMedia && typeof MediaRecorder !== 'undefined')
+})
+
+async function startRec() {
+  error.value = ''
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } })
+  } catch {
+    error.value = 'Không mở được micro. Hãy cho phép trình duyệt dùng micro rồi thử lại.'
+    return
+  }
+  // Chrome/Android ghi webm, Safari/iPhone ghi mp4 (m4a)
+  const type = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm'].find((t) => MediaRecorder.isTypeSupported(t))
+  mr = new MediaRecorder(micStream, type ? { mimeType: type, audioBitsPerSecond: 96000 } : undefined)
+  chunks = []
+  mr.ondataavailable = (e) => e.data.size && chunks.push(e.data)
+  mr.onstop = finishRec
+  mr.start(1000)
+  recording.value = true
+  recSec.value = 0
+  recTimer = setInterval(() => {
+    recSec.value++
+    if (recSec.value >= MAX_REC_SEC) stopRec()
+  }, 1000)
+}
+
+function stopRec(discard = false) {
+  if (recTimer) clearInterval(recTimer)
+  recTimer = null
+  if (discard && mr) mr.onstop = null
+  if (mr && mr.state !== 'inactive') mr.stop()
+  micStream?.getTracks().forEach((t) => t.stop())
+  micStream = null
+  recording.value = false
+}
+
+const pad = (n: number) => String(n).padStart(2, '0')
+function finishRec() {
+  const mime = mr?.mimeType || 'audio/webm'
+  mr = null
+  if (!chunks.length) return
+  const ext = mime.includes('mp4') ? 'm4a' : 'webm'
+  const d = new Date()
+  const name = `Ghi âm ${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()} ${pad(d.getHours())}h${pad(d.getMinutes())}.${ext}`
+  addFiles([new File(chunks, name, { type: mime })])
+  chunks = []
+}
+const recClock = computed(() => `${pad(Math.floor(recSec.value / 60))}:${pad(recSec.value % 60)}`)
 
 function show() {
   open.value = true
   error.value = ''
 }
 function hide() {
-  if (!running.value) open.value = false
+  if (running.value) return
+  if (recording.value) stopRec() // vẫn giữ bản đã ghi trong danh sách
+  open.value = false
 }
 
 function addFiles(list: FileList | File[] | null) {
@@ -154,7 +219,7 @@ function size(n: number) {
             <div class="badge"><Icon name="upload" :size="18" /></div>
             <div>
               <h3>Tải nhạc lên</h3>
-              <p>mp3, m4a, flac, ogg, wav… tối đa 25MB mỗi bài</p>
+              <p>Nhạc hoặc ghi âm điện thoại (mp3, m4a, amr, 3gp…), tối đa 25MB mỗi file</p>
             </div>
             <button class="x" title="Đóng" :disabled="running" @click="hide"><Icon name="close" :size="16" /></button>
           </header>
@@ -166,11 +231,24 @@ function size(n: number) {
             @dragleave="dragging = false"
             @drop.prevent="onDrop"
           >
-            <input ref="picker" type="file" multiple accept="audio/*,.mp3,.m4a,.flac,.ogg,.opus,.wav,.webm" @change="addFiles(($event.target as HTMLInputElement).files); ($event.target as HTMLInputElement).value = ''" />
+            <input ref="picker" type="file" multiple accept="audio/*,.mp3,.m4a,.aac,.flac,.ogg,.opus,.wav,.webm,.amr,.3gp,.3ga,.caf" @change="addFiles(($event.target as HTMLInputElement).files); ($event.target as HTMLInputElement).value = ''" />
             <Icon name="music" :size="22" />
             <b>Kéo thả file vào đây</b>
             <span>hoặc bấm để chọn từ máy</span>
           </label>
+
+          <div v-if="canRecord" class="rec" :class="{ on: recording }">
+            <template v-if="!recording">
+              <button class="btn btn-soft" :disabled="running" @click="startRec"><Icon name="mic" :size="15" /> Ghi âm</button>
+              <span class="rec-hint">Ghi bằng micro rồi tải lên luôn</span>
+            </template>
+            <template v-else>
+              <span class="rec-dot" />
+              <b class="rec-time">{{ recClock }}</b>
+              <span class="rec-hint">Đang ghi âm…</span>
+              <button class="btn btn-primary" @click="stopRec()"><Icon name="stop" :size="13" /> Dừng</button>
+            </template>
+          </div>
 
           <ul v-if="items.length" class="list">
             <li v-for="it in items" :key="it.key" :class="it.state">
@@ -188,7 +266,7 @@ function size(n: number) {
           </ul>
 
           <div class="row">
-            <button class="btn btn-primary" :disabled="running || !pending" @click="start">
+            <button class="btn btn-primary" :disabled="running || recording || !pending" @click="start">
               <Icon name="upload" :size="15" />
               {{ running ? 'Đang tải…' : pending > 1 ? `Tải ${pending} bài` : 'Tải lên' }}
             </button>
@@ -331,6 +409,38 @@ header p {
 }
 .drop input {
   display: none;
+}
+.rec {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px 8px 8px;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  transition: background 0.25s;
+}
+.rec.on {
+  background: var(--rose);
+}
+.rec-hint {
+  flex: 1;
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+.rec.on .rec-hint {
+  color: var(--text-2);
+}
+.rec-time {
+  font-variant-numeric: tabular-nums;
+  font-size: 15px;
+}
+.rec-dot {
+  width: 10px;
+  height: 10px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: var(--rose-deep);
+  animation: pulse 1.2s ease-in-out infinite;
 }
 .list {
   list-style: none;
@@ -477,6 +587,7 @@ header p {
 }
 @media (prefers-reduced-motion: reduce) {
   .dot,
+  .rec-dot,
   .spin {
     animation: none;
   }

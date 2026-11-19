@@ -1,4 +1,5 @@
 import { createReadStream, promises as fs } from 'node:fs'
+import { spawn } from 'node:child_process'
 import path from 'node:path'
 
 export default defineEventHandler(async (event) => {
@@ -7,6 +8,15 @@ export default defineEventHandler(async (event) => {
   if (!track) throw createError({ statusCode: 404, statusMessage: 'Không tìm thấy bài hát' })
 
   const full = path.join(musicRoot(), track.file)
+
+  // File ghi âm (amr, 3gp…) → ffmpeg đổi sang mp3 trực tiếp (không tua nhanh được, đủ dùng cho ghi âm)
+  if (TRANSCODE.has(path.extname(full).toLowerCase())) {
+    setHeader(event, 'Content-Type', 'audio/mpeg')
+    setHeader(event, 'Cache-Control', 'no-store')
+    const ff = spawn('ffmpeg', ['-v', 'error', '-i', full, '-vn', '-b:a', '128k', '-f', 'mp3', 'pipe:1'])
+    event.node.req.on('close', () => ff.kill('SIGKILL'))
+    return sendStream(event, ff.stdout)
+  }
   const { size } = await fs.stat(full)
   const type = MIME[path.extname(full).toLowerCase()] || 'application/octet-stream'
 

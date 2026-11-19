@@ -4,8 +4,14 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import { createHash } from 'node:crypto'
 import { parseFile } from 'music-metadata'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 
-const AUDIO_EXT = new Set(['.mp3', '.flac', '.m4a', '.aac', '.ogg', '.opus', '.wav', '.webm'])
+const run = promisify(execFile)
+
+const AUDIO_EXT = new Set(['.mp3', '.flac', '.m4a', '.aac', '.ogg', '.opus', '.wav', '.webm', '.amr', '.3gp', '.3ga', '.caf'])
+// Ghi âm điện thoại / trình duyệt: nhiều trình duyệt không phát được → đổi sang mp3 bằng ffmpeg
+const CONVERT = new Set(['.amr', '.3gp', '.3ga', '.caf', '.webm'])
 const MAX_SIZE = 25 * 1024 * 1024 // giới hạn 1 file của Cloudflare Pages
 const root = path.resolve(process.env.MUSIC_DIR || './music')
 const out = path.resolve('.output/public')
@@ -69,8 +75,25 @@ for (const full of await walk(root)) {
       t.cover = `/covers/${id}${pext}`
     }
   } catch {}
-  await fs.copyFile(full, path.join(out, 'media', id + ext))
-  t.src = `/media/${id}${ext}`
+  if (CONVERT.has(ext)) {
+    const dest = path.join(out, 'media', id + '.mp3')
+    try {
+      await run('ffmpeg', ['-v', 'error', '-y', '-i', full, '-vn', '-b:a', '128k', dest])
+    } catch (e) {
+      skipped.push(`${rel} (không đổi được sang mp3)`)
+      continue
+    }
+    if (!t.duration) {
+      try {
+        t.duration = (await parseFile(dest, { duration: true })).format.duration ?? 0
+      } catch {}
+    }
+    if (t.genre === 'Khác') t.genre = 'Ghi âm'
+    t.src = `/media/${id}.mp3`
+  } else {
+    await fs.copyFile(full, path.join(out, 'media', id + ext))
+    t.src = `/media/${id}${ext}`
+  }
   tracks.push(t)
 }
 tracks.sort((a, b) => a.artist.localeCompare(b.artist) || a.album.localeCompare(b.album) ||
@@ -78,4 +101,4 @@ tracks.sort((a, b) => a.artist.localeCompare(b.artist) || a.album.localeCompare(
 await fs.writeFile(path.join(out, 'data', 'tracks.json'), JSON.stringify(tracks))
 // Bỏ 404.html để Pages tự trả index.html cho mọi đường dẫn (SPA: /stats, /library…)
 await fs.rm(path.join(out, '404.html'), { force: true })
-console.log(`Xuất ${tracks.length} bài` + (skipped.length ? `, bỏ qua (>25MB): ${skipped.join(', ')}` : ''))
+console.log(`Xuất ${tracks.length} bài` + (skipped.length ? `, bỏ qua: ${skipped.join(', ')}` : ''))

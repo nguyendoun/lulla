@@ -10,7 +10,8 @@
 const COOKIE = 'lulla_session'
 const SESSION_DAYS = 30
 const MAX_BYTES = 25 * 1024 * 1024 // giới hạn 1 file của Cloudflare
-const AUDIO_EXT = ['mp3', 'm4a', 'aac', 'flac', 'ogg', 'opus', 'wav', 'webm']
+// amr/3gp/3ga/caf: file ghi âm điện thoại, CI đổi sang mp3 lúc build
+const AUDIO_EXT = ['mp3', 'm4a', 'aac', 'flac', 'ogg', 'opus', 'wav', 'webm', 'amr', '3gp', '3ga', 'caf']
 
 export default {
   async fetch(req, env) {

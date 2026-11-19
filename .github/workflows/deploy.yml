@@ -25,6 +25,9 @@ jobs:
 
       - run: npm ci
 
+      - name: Cài ffmpeg (đổi file ghi âm sang mp3)
+        run: command -v ffmpeg || (sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg)
+
       - name: Build bản tĩnh
         run: npm run build:static
         env:

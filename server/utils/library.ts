@@ -17,7 +17,9 @@ export interface Track {
   addedAt: number
 }
 
-const AUDIO_EXT = new Set(['.mp3', '.flac', '.m4a', '.aac', '.ogg', '.opus', '.wav', '.webm'])
+const AUDIO_EXT = new Set(['.mp3', '.flac', '.m4a', '.aac', '.ogg', '.opus', '.wav', '.webm', '.amr', '.3gp', '.3ga', '.caf'])
+// Ghi âm điện thoại: trình duyệt không phát được → đổi sang mp3 khi phát (xem stream/[id])
+export const TRANSCODE = new Set(['.amr', '.3gp', '.3ga', '.caf'])
 
 export const MIME: Record<string, string> = {
   '.mp3': 'audio/mpeg',
@@ -83,7 +85,7 @@ async function readTrack(full: string, root: string, mtime: number): Promise<Tra
       artist: c.artist || c.albumartist || guess.artist || 'Không rõ nghệ sĩ',
       album: c.album || (folder !== path.basename(root) ? folder : 'Single'),
       year: c.year ?? null,
-      genre: c.genre?.[0] || 'Khác',
+      genre: c.genre?.[0] || (TRANSCODE.has(path.extname(full).toLowerCase()) ? 'Ghi âm' : 'Khác'),
       duration: meta.format.duration ?? 0,
       trackNo: c.track?.no ?? null,
       hasCover: !!c.picture?.length,
