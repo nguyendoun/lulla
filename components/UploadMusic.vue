@@ -3,6 +3,7 @@
 interface Item {
   key: string
   file: File
+  name: string // tên gửi lên, đã gắn đuôi đúng
   state: 'wait' | 'up' | 'done' | 'skip' | 'err'
   msg: string
 }
@@ -13,7 +14,7 @@ interface Job {
   createdAt: string
 }
 
-const EXT = ['mp3', 'm4a', 'aac', 'flac', 'ogg', 'opus', 'wav', 'webm', 'amr', '3gp', '3ga', 'caf', 'qta']
+const EXT = ['mp3', 'm4a', 'aac', 'flac', 'ogg', 'opus', 'wav', 'webm', 'amr', '3gp', '3ga', 'caf', 'qta', 'mp4', 'mov']
 const MAX = 25 * 1024 * 1024
 
 const lib = useLibrary()
@@ -106,12 +107,34 @@ function hide() {
   open.value = false
 }
 
+// iPhone/Android hay đặt tên file thiếu đuôi hoặc đuôi lạ → đoán theo loại (MIME)
+const MIME_EXT: Record<string, string> = {
+  'audio/mpeg': 'mp3', 'audio/mp3': 'mp3', 'audio/mp4': 'm4a', 'audio/x-m4a': 'm4a', 'audio/m4a': 'm4a',
+  'audio/aac': 'aac', 'audio/x-aac': 'aac', 'audio/flac': 'flac', 'audio/x-flac': 'flac', 'audio/ogg': 'ogg',
+  'audio/opus': 'opus', 'audio/wav': 'wav', 'audio/x-wav': 'wav', 'audio/wave': 'wav', 'audio/webm': 'webm',
+  'audio/amr': 'amr', 'audio/3gpp': '3gp', 'video/3gpp': '3gp', 'audio/x-caf': 'caf', 'audio/x-qta': 'qta',
+  'video/mp4': 'mp4', 'video/quicktime': 'mov', 'video/webm': 'webm',
+}
+function fixName(f: File) {
+  const m = /^(.*?)(?:\.([A-Za-z0-9]{1,5}))?$/.exec(f.name.trim()) || []
+  let base = m[1] || ''
+  let ext = (m[2] || '').toLowerCase()
+  if (!EXT.includes(ext)) {
+    const byType = MIME_EXT[(f.type || '').split(';')[0].toLowerCase()]
+    if (!byType) return { name: f.name, ok: false }
+    if (ext) base = f.name.trim() // đuôi lạ: giữ nguyên trong tên, thêm đuôi đúng
+    ext = byType
+  }
+  base = base.replace(/^\.+/, '').trim() || 'Ghi âm ' + new Date().toLocaleString('vi-VN').replace(/[/:]/g, '-')
+  return { name: `${base}.${ext}`, ok: true }
+}
+
 function addFiles(list: FileList | File[] | null) {
   error.value = ''
   for (const f of Array.from(list || [])) {
-    const ext = f.name.split('.').pop()?.toLowerCase() || ''
-    const it: Item = { key: f.name + f.size + Math.random(), file: f, state: 'wait', msg: '' }
-    if (!EXT.includes(ext)) Object.assign(it, { state: 'skip', msg: 'Không phải file nhạc' })
+    const fx = fixName(f)
+    const it: Item = { key: f.name + f.size + Math.random(), file: f, name: fx.name, state: 'wait', msg: '' }
+    if (!fx.ok) Object.assign(it, { state: 'skip', msg: `Không nhận dạng được file (${f.type || 'không rõ loại'})` })
     else if (f.size > MAX) Object.assign(it, { state: 'skip', msg: 'Quá 25MB' })
     else if (items.value.some((i) => i.file.name === f.name && i.file.size === f.size)) continue
     items.value.push(it)
@@ -151,7 +174,7 @@ async function start() {
         method: 'POST',
         headers: {
           'content-type': 'text/plain',
-          'x-filename': encodeURIComponent(it.file.name),
+          'x-filename': encodeURIComponent(it.name),
         },
         body,
       })
@@ -233,7 +256,7 @@ function size(n: number) {
             @dragleave="dragging = false"
             @drop.prevent="onDrop"
           >
-            <input ref="picker" type="file" multiple accept="audio/*,.mp3,.m4a,.aac,.flac,.ogg,.opus,.wav,.webm,.amr,.3gp,.3ga,.caf,.qta" @change="addFiles(($event.target as HTMLInputElement).files); ($event.target as HTMLInputElement).value = ''" />
+            <input ref="picker" type="file" multiple accept="audio/*,.mp3,.m4a,.aac,.flac,.ogg,.opus,.wav,.webm,.amr,.3gp,.3ga,.caf,.qta,.mp4,.mov" @change="addFiles(($event.target as HTMLInputElement).files); ($event.target as HTMLInputElement).value = ''" />
             <Icon name="music" :size="22" />
             <b>Kéo thả file vào đây</b>
             <span>hoặc bấm để chọn từ máy</span>
@@ -259,7 +282,7 @@ function size(n: number) {
                 <span v-else-if="it.state === 'up'" class="spin" />
                 <Icon v-else name="music" :size="14" />
               </span>
-              <span class="name">{{ it.file.name }}</span>
+              <span class="name">{{ it.name }}</span>
               <span class="meta">{{ it.msg || size(it.file.size) }}</span>
               <button v-if="it.state === 'wait' && !running" class="rm" title="Bỏ" @click="remove(it)">
                 <Icon name="close" :size="13" />

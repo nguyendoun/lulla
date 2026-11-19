@@ -9,10 +9,10 @@ import { promisify } from 'node:util'
 
 const run = promisify(execFile)
 
-const AUDIO_EXT = new Set(['.mp3', '.flac', '.m4a', '.aac', '.ogg', '.opus', '.wav', '.webm', '.amr', '.3gp', '.3ga', '.caf', '.qta'])
+const AUDIO_EXT = new Set(['.mp3', '.flac', '.m4a', '.aac', '.ogg', '.opus', '.wav', '.webm', '.amr', '.3gp', '.3ga', '.caf', '.qta', '.mp4', '.mov'])
 // Ghi âm điện thoại / trình duyệt: nhiều trình duyệt không phát được → đổi sang mp3 bằng ffmpeg
 // .qta = ghi âm nhiều lớp của iPhone (iOS 18)
-const CONVERT = new Set(['.amr', '.3gp', '.3ga', '.caf', '.qta', '.webm'])
+const CONVERT = new Set(['.amr', '.3gp', '.3ga', '.caf', '.qta', '.mp4', '.mov', '.webm'])
 const MAX_SIZE = 25 * 1024 * 1024 // giới hạn 1 file của Cloudflare Pages
 const root = path.resolve(process.env.MUSIC_DIR || './music')
 const out = path.resolve('.output/public')
