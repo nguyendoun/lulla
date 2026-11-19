@@ -1,6 +1,9 @@
 {
   // Bản tĩnh của Lulla trên Cloudflare (Worker chỉ phục vụ file tĩnh)
   "name": "lulla",
+  // Tên miền riêng (thay trang cũ ở doun.online)
+  "routes": [{ "pattern": "doun.online", "custom_domain": true }],
+  "workers_dev": true,
   "compatibility_date": "2026-11-01",
   "assets": {
     "directory": ".output/public",
