@@ -1,0 +1,10 @@
+{
+  // Bản tĩnh của Lulla trên Cloudflare (Worker chỉ phục vụ file tĩnh)
+  "name": "lulla",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": ".output/public",
+    // Đường dẫn như /stats, /library tải lại vẫn ra app
+    "not_found_handling": "single-page-application"
+  }
+}

@@ -7,7 +7,7 @@
     "build": "nuxt build",
     "preview": "node .output/server/index.mjs",
     "build:static": "STATIC_EXPORT=1 nuxt generate && node scripts/export-static.mjs",
-    "deploy": "npm run build:static && npx wrangler pages deploy .output/public --project-name lulla"
+    "deploy": "npm run build:static && npx wrangler deploy"
   },
   "dependencies": {
     "music-metadata": "^11.0.0",
