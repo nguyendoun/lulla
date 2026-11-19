@@ -37,7 +37,7 @@ jobs:
           echo "Số bài: $n"
           test "$n" -gt 0
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         with:
           name: site
           path: .output/public
@@ -60,7 +60,7 @@ jobs:
 
       - run: npm ci
 
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v6
         with:
           name: site
           path: .output/public
