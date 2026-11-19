@@ -1,4 +1,4 @@
-import type { Track } from './useLibrary'
+import { coverUrl, type Track } from './useLibrary'
 
 type Repeat = 'off' | 'all' | 'one'
 
@@ -139,7 +139,7 @@ export function usePlayer() {
 
   function load(t: Track, autoplay = true) {
     if (!audio) return
-    audio.src = `/api/stream/${t.id}`
+    audio.src = t.src ?? `/api/stream/${t.id}`
     duration.value = t.duration
     time.value = 0
     sessionStart = Date.now()
@@ -273,7 +273,7 @@ export function usePlayer() {
       title: t.title,
       artist: t.artist,
       album: t.album,
-      artwork: t.hasCover ? [{ src: `/api/cover/${t.id}`, sizes: '512x512' }] : [],
+      artwork: t.hasCover ? [{ src: coverUrl(t)!, sizes: '512x512' }] : [],
     })
   }
 

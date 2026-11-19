@@ -9,6 +9,9 @@ export interface Track {
   trackNo: number | null
   hasCover: boolean
   addedAt: number
+  /** Chỉ có ở bản xuất tĩnh */
+  src?: string
+  cover?: string
 }
 
 export interface Album {
@@ -38,7 +41,10 @@ export function useLibrary() {
     if (loading.value) return
     loading.value = true
     try {
-      tracks.value = await $fetch<Track[]>('/api/tracks', { query: refresh ? { refresh: 1 } : {} })
+      const { staticMode } = useRuntimeConfig().public
+      tracks.value = staticMode
+        ? await $fetch<Track[]>('/data/tracks.json', { query: refresh ? { t: Date.now() } : {} })
+        : await $fetch<Track[]>('/api/tracks', { query: refresh ? { refresh: 1 } : {} })
       loaded.value = true
     } finally {
       loading.value = false
@@ -89,8 +95,8 @@ export function useLibrary() {
   return { tracks, loaded, loading, load, byId, albums, artists, genres, totalDuration, genreColor }
 }
 
-export function coverUrl(t: Pick<Track, 'id' | 'hasCover'> | null | undefined) {
-  return t?.hasCover ? `/api/cover/${t.id}` : null
+export function coverUrl(t: Pick<Track, 'id' | 'hasCover' | 'cover'> | null | undefined) {
+  return t?.hasCover ? t.cover ?? `/api/cover/${t.id}` : null
 }
 
 export function fmtTime(sec: number) {

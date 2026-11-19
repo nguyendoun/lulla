@@ -2,11 +2,14 @@
 export default defineNuxtConfig({
   compatibilityDate: '2025-01-01',
   devtools: { enabled: false },
-  ssr: false, // app nghe nhạc cá nhân → SPA cho mượt, không cần SEO
+  ssr: false,
+  // Bản xuất tĩnh (Cloudflare Pages) build riêng để không đụng dev server đang chạy
+  buildDir: process.env.STATIC_EXPORT ? '.nuxt-static' : '.nuxt', // app nghe nhạc cá nhân → SPA cho mượt, không cần SEO
   css: ['~/assets/css/main.css'],
   runtimeConfig: {
     // Đổi bằng biến môi trường: MUSIC_DIR=/duong/dan/nhac npm run dev
     musicDir: process.env.MUSIC_DIR || './music',
+    public: { staticMode: process.env.STATIC_EXPORT === '1' },
   },
   app: {
     pageTransition: { name: 'page', mode: 'out-in' },
