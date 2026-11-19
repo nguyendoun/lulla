@@ -1,16 +1,17 @@
 // Worker của Lulla trên Cloudflare:
 //  - /media/*  : file nhạc tĩnh, có HTTP Range để tua
-//  - /api/add  : nhận link nhạc → chạy workflow "add-music" trên GitHub (cần mã ADD_CODE)
-//  - /api/jobs : trạng thái các lần thêm nhạc gần đây
-// Secrets (wrangler secret put): ADD_CODE, GITHUB_TOKEN (fine-grained, chỉ repo lulla, Actions read/write)
-// Vars (wrangler.jsonc): GITHUB_REPO, ADD_WORKFLOW
+//  - /api/upload : nhận 1 file nhạc (base64) → commit vào music/ trên GitHub → CI tự deploy
+//  - /api/jobs   : trạng thái các lần deploy gần đây
+// Secrets (wrangler secret put): ADD_CODE, GITHUB_TOKEN (fine-grained, chỉ repo lulla: Contents RW, Actions read)
+// Vars (wrangler.jsonc): GITHUB_REPO, DEPLOY_WORKFLOW
 
-const MAX_LINKS = 20
+const MAX_BYTES = 25 * 1024 * 1024 // giới hạn 1 file của Cloudflare
+const AUDIO_EXT = ['mp3', 'm4a', 'aac', 'flac', 'ogg', 'opus', 'wav', 'webm']
 
 export default {
   async fetch(req, env) {
     const url = new URL(req.url)
-    if (url.pathname === '/api/add') return addMusic(req, env)
+    if (url.pathname === '/api/upload') return upload(req, env, url)
     if (url.pathname === '/api/jobs') return listJobs(req, env)
     if (url.pathname.startsWith('/media/')) return serveMedia(req, env, url)
     return env.ASSETS.fetch(req)
@@ -27,9 +28,9 @@ function json(data, status = 200) {
 }
 
 // So sánh mã không lộ thời gian
+const enc = new TextEncoder()
 async function codeOk(given, env) {
   if (!env.ADD_CODE || typeof given !== 'string' || !given) return false
-  const enc = new TextEncoder()
   const [a, b] = await Promise.all([
     crypto.subtle.digest('SHA-256', enc.encode(given)),
     crypto.subtle.digest('SHA-256', enc.encode(env.ADD_CODE)),
@@ -39,25 +40,6 @@ async function codeOk(given, env) {
   let diff = 0
   for (let i = 0; i < x.length; i++) diff |= x[i] ^ y[i]
   return diff === 0
-}
-
-// Chỉ nhận link http(s) hợp lệ, không khoảng trắng / ký tự lạ
-export function cleanLinks(text) {
-  const out = []
-  for (const raw of String(text || '').split(/[\s,]+/)) {
-    if (!raw) continue
-    let u
-    try {
-      u = new URL(raw)
-    } catch {
-      continue
-    }
-    if (u.protocol !== 'https:' && u.protocol !== 'http:') continue
-    const s = u.toString()
-    if (s.length > 500 || /["'`$\\<>]/.test(s)) continue
-    if (!out.includes(s)) out.push(s)
-  }
-  return out
 }
 
 function gh(env, path, init = {}) {
@@ -73,37 +55,74 @@ function gh(env, path, init = {}) {
   })
 }
 
-async function addMusic(req, env) {
+// Tên file an toàn: bỏ thư mục, ký tự lạ; giữ chữ có dấu
+function cleanName(raw) {
+  let name = String(raw || '').split(/[\\/]/).pop().normalize('NFC')
+  name = name.replace(/[\u0000-\u001f"*:<>?|#%{}^~`$\\]/g, '').replace(/\s+/g, ' ').trim()
+  const m = /^(.*)\.([A-Za-z0-9]+)$/.exec(name)
+  if (!m || !AUDIO_EXT.includes(m[2].toLowerCase())) return null
+  const base = m[1].replace(/^\.+/, '').slice(0, 150).trim()
+  return base ? `${base}.${m[2].toLowerCase()}` : null
+}
+
+// Nhận base64 thô, ghép thẳng vào JSON gửi GitHub bằng stream (không giải mã → nhẹ CPU)
+async function upload(req, env, url) {
   if (req.method !== 'POST') return json({ error: 'Chỉ nhận POST' }, 405)
-  let body
-  try {
-    body = await req.json()
-  } catch {
-    return json({ error: 'Dữ liệu không hợp lệ' }, 400)
-  }
-  if (!(await codeOk(body.code, env))) return json({ error: 'Sai mã thêm nhạc' }, 401)
+  const origin = req.headers.get('origin')
+  if (origin && origin !== url.origin) return json({ error: 'Sai nguồn gửi' }, 403)
+  if (!(await codeOk(req.headers.get('x-add-code'), env))) return json({ error: 'Sai mã thêm nhạc' }, 401)
   if (!env.GITHUB_TOKEN) return json({ error: 'Máy chủ chưa cấu hình GITHUB_TOKEN' }, 500)
 
-  const links = cleanLinks(body.links)
-  if (!links.length) return json({ error: 'Không có link hợp lệ' }, 400)
-  if (links.length > MAX_LINKS) return json({ error: `Tối đa ${MAX_LINKS} link mỗi lần` }, 400)
+  const name = cleanName(decodeURIComponent(req.headers.get('x-filename') || ''))
+  if (!name) return json({ error: `Chỉ nhận file nhạc: ${AUDIO_EXT.join(', ')}` }, 400)
+  const len = Number(req.headers.get('content-length') || 0)
+  if (!len || !req.body) return json({ error: 'File rỗng' }, 400)
+  if (len > Math.ceil(MAX_BYTES / 3) * 4) return json({ error: 'File quá 25MB' }, 413)
 
-  const res = await gh(env, `/actions/workflows/${env.ADD_WORKFLOW}/dispatches`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ref: 'main', inputs: { links: links.join(' ') } }),
-  })
+  const path = 'music/' + name
+  const apiPath = '/contents/' + path.split('/').map(encodeURIComponent).join('/')
+
+  // Đã có bài trùng tên → báo luôn, không ghi đè
+  const head = await gh(env, apiPath + '?ref=main')
+  if (head.ok) return json({ error: 'Bài này đã có trong thư viện', name }, 409)
+
+  const prefix = enc.encode(`{"message":${JSON.stringify('Tải nhạc lên: ' + name)},"branch":"main","content":"`)
+  const suffix = enc.encode('"}')
+  const total = prefix.length + len + suffix.length
+
+  // Chỉ cho ký tự base64 đi qua; gặp ký tự khác thì huỷ
+  const B64 = /^[A-Za-z0-9+/=]*$/
+  const dec = new TextDecoder()
+  const { readable, writable } = new FixedLengthStream(total)
+  const pump = (async () => {
+    const w = writable.getWriter()
+    await w.write(prefix)
+    const r = req.body.getReader()
+    for (;;) {
+      const { done, value } = await r.read()
+      if (done) break
+      if (!B64.test(dec.decode(value, { stream: true }))) throw new Error('Dữ liệu không phải base64')
+      await w.write(value)
+    }
+    await w.write(suffix)
+    await w.close()
+  })()
+
+  const [res] = await Promise.all([
+    gh(env, apiPath, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: readable }),
+    pump.catch((e) => writable.abort(e)),
+  ])
   if (!res.ok) {
     const detail = await res.text()
     return json({ error: `GitHub từ chối (${res.status})`, detail: detail.slice(0, 300) }, 502)
   }
-  return json({ ok: true, count: links.length, links })
+  return json({ ok: true, name })
 }
 
 async function listJobs(req, env) {
-  const code = req.headers.get('x-add-code')
-  if (!(await codeOk(code, env))) return json({ error: 'Sai mã thêm nhạc' }, 401)
-  const res = await gh(env, `/actions/workflows/${env.ADD_WORKFLOW}/runs?per_page=8`)
+  if (!(await codeOk(req.headers.get('x-add-code'), env))) return json({ error: 'Sai mã thêm nhạc' }, 401)
+  if (!env.GITHUB_TOKEN) return json([])
+  const res = await gh(env, `/actions/workflows/${env.DEPLOY_WORKFLOW}/runs?branch=main&per_page=6`)
   if (!res.ok) return json({ error: `GitHub lỗi (${res.status})` }, 502)
   const data = await res.json()
   return json(

@@ -7,8 +7,8 @@
   "workers_dev": true,
   "compatibility_date": "2026-11-01",
   "main": "worker/index.js",
-  // Thêm nhạc từ link: Worker gọi workflow này trên GitHub (secret ADD_CODE, GITHUB_TOKEN đặt riêng)
-  "vars": { "GITHUB_REPO": "nguyendoun/lulla", "ADD_WORKFLOW": "add-music.yml" },
+  // Tải nhạc lên: Worker commit file vào repo này (secret ADD_CODE, GITHUB_TOKEN đặt riêng)
+  "vars": { "GITHUB_REPO": "nguyendoun/lulla", "DEPLOY_WORKFLOW": "deploy.yml" },
   "assets": {
     "directory": ".output/public",
     "binding": "ASSETS",

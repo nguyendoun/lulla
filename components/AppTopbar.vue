@@ -64,7 +64,8 @@ const mobileNav = [
     </label>
 
     <div class="actions">
-      <AddFromLink v-if="staticMode" />
+      <UploadMusic v-if="staticMode" />
+      <AddFromLink v-else />
       <button class="ic" title="Quét lại thư mục nhạc" :class="{ spin: lib.loading.value }" @click="lib.load(true)">
         <Icon name="refresh" :size="17" />
       </button>
